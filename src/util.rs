@@ -8,6 +8,10 @@ use std::io::Write;
 use std::path::Path;
 use std::process::{exit, Command};
 
+pub fn get_filename(path: &str) -> Option<&str> {
+    Path::new(path).file_name()?.to_str()
+}
+
 pub fn run_command(command_str: &str) -> io::Result<()> {
     let shell = env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
 
@@ -50,19 +54,19 @@ pub fn prompt(msg: &str) -> String {
 }
 
 pub fn files_in_dir(dir_path: &str, extension: &str) -> io::Result<Vec<String>> {
-    let mut toml_files = Vec::new();
+    let mut files = Vec::new();
 
     for entry in fs::read_dir(dir_path)? {
         let entry = entry?;
         let path = entry.path();
-        if path.extension() == Some(std::ffi::OsStr::new(extension)) {
-            if let Some(file_name) = path.to_str() {
-                toml_files.push(file_name.to_string());
+        if let Some(file_name) = path.to_str() {
+            if file_name.ends_with(extension) {
+                files.push(file_name.to_string());
             }
         }
     }
 
-    Ok(toml_files)
+    Ok(files)
 }
 
 pub fn terminate_on_error<T>(value: Result<T, Error>) -> T {

@@ -3,7 +3,7 @@ use clap::{Args, Parser, Subcommand};
 #[derive(Parser)]
 pub struct Cli {
     #[command(subcommand)]
-    pub command: Commands,
+    pub command: Option<Commands>,
 }
 
 #[derive(Subcommand)]
@@ -25,8 +25,12 @@ pub enum GenerationCommand {
     Build,
     /// Remove a generation
     Remove(RemoveGeneration),
-    /// Rollback to previous generation
-    Rollback(RollbackGeneration),
+    /// Rollback to nth previous generation
+    RollbackBy(RollbackGeneration),
+    /// Rollback to a generation id.
+    RollbackTo(RollbackGeneration),
+    /// List all generations
+    List,
 }
 
 #[derive(Args)]
@@ -43,22 +47,18 @@ pub struct RollbackGeneration {
 
 #[derive(Args)]
 pub struct InstallPkg {
-    /// Name of package to install
-    pkg_name: String,
     /// In which package pack to install
     package_pack: String,
-    /// Manager to use
-    manager: String,
+    /// Name of package to install
+    pkg_names: Vec<String>,
 }
 
 #[derive(Args)]
 pub struct RemovePkg {
-    /// Name of package to remove
-    pkg_name: String,
     /// From which package pack to remove
     package_pack: String,
-    /// Manager to use
-    manager: String,
+    /// Name of package to remove
+    pkg_names: Vec<String>,
 }
 
 #[derive(Args)]
