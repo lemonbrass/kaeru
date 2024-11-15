@@ -1,4 +1,5 @@
 pub const ASK_FOR_SETUP_MSG: &str = "Kaeru isn't setup right now, want to run setup? [Y/n]: ";
+pub const SETUP_COMPLETE: &str = "Setup finished, you may preceed.";
 pub const DEFAULT_CONFIG: &str = r#"
 [managers]
 # call_order = ["manager1", "manager2", "manager3"]

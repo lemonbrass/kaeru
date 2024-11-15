@@ -35,7 +35,8 @@ pub fn get_contents_of(file: &str) -> io::Result<String> {
 }
 
 pub fn yesnoprompt(msg: &str) -> bool {
-    return prompt(msg).to_lowercase() == "y";
+    let out = prompt(msg).to_lowercase();
+    return out == "y" || out.is_empty();
 }
 
 pub fn prompt(msg: &str) -> String {

@@ -1,5 +1,9 @@
 #![allow(dead_code)]
-use crate::{error::Error, globals::*, manager::Manager, package_pack::PackagePack, util::*};
+use clap::Parser;
+
+use crate::{
+    cli::Cli, error::Error, globals::*, manager::Manager, package_pack::PackagePack, util::*,
+};
 use std::{collections::HashMap, fs};
 
 pub struct App {
@@ -16,7 +20,12 @@ impl App {
         if !app.is_already_setup() && yesnoprompt(ASK_FOR_SETUP_MSG) {
             terminate_on_error(app.setup());
         }
+        app.setup_cli();
         app
+    }
+
+    fn setup_cli(&self) {
+        Cli::parse();
     }
 
     fn is_already_setup(&self) -> bool {
@@ -37,6 +46,7 @@ impl App {
         mkdir_if_not_exists(&package_dir()).unwrap();
         mkdir_if_not_exists(&gen_dir()).unwrap();
         create_file_with_contents(&conf_file(), DEFAULT_CONFIG);
+        println!("{}", SETUP_COMPLETE);
         Ok(())
     }
 }
