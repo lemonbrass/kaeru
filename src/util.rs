@@ -2,11 +2,29 @@ use crate::error::Error;
 use std::env;
 use std::fs;
 use std::fs::File;
+use std::fs::OpenOptions;
 use std::io;
 use std::io::Read;
 use std::io::Write;
 use std::path::Path;
 use std::process::{exit, Command};
+
+pub fn remove_all_files_in_dir(dir: &str) -> io::Result<()> {
+    for entry in fs::read_dir(dir)? {
+        let path = entry?.path();
+        if path.is_file() {
+            fs::remove_file(path)?;
+        }
+    }
+    Ok(())
+}
+
+pub fn remove_all_files_in_dirs(dirs: Vec<String>) -> io::Result<()> {
+    for dir in dirs {
+        remove_all_files_in_dir(&dir)?;
+    }
+    Ok(())
+}
 
 pub fn get_filename(path: &str) -> Option<&str> {
     Path::new(path).file_name()?.to_str()
@@ -69,6 +87,19 @@ pub fn files_in_dir(dir_path: &str, extension: &str) -> io::Result<Vec<String>> 
     Ok(files)
 }
 
+pub fn files_in_dirs(dirs: Vec<String>, extension: &str) -> io::Result<Vec<String>> {
+    let mut files: Vec<String> = Vec::new();
+    for dir in dirs {
+        let dir_files = files_in_dir(&dir, extension)?;
+        files.extend(dir_files);
+    }
+    Ok(files)
+}
+
+pub fn all_backup_files() -> Vec<String> {
+    vec![package_dir(), managers_dir()]
+}
+
 pub fn terminate_on_error<T>(value: Result<T, Error>) -> T {
     if let Err(err) = &value {
         eprintln!("ERROR: {}", err.msg);
@@ -113,9 +144,30 @@ pub fn create_file_with_contents(file_path: &str, contents: &str) {
         .expect("Failed to write to file");
 }
 
+pub fn overwrite_contents_of(file: &str, contents: &str) -> io::Result<()> {
+    let mut file = OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .open(file)?;
+    file.write_all(contents.as_bytes())
+}
 pub fn mkdir_if_not_exists(dir: &str) -> io::Result<()> {
     if !fs::exists(dir)? {
         fs::create_dir_all(dir)?;
     }
     Ok(())
+}
+
+pub fn epoch_time_secs() -> i64 {
+    let now = chrono::Utc::now();
+    now.timestamp()
+}
+
+pub fn epoch_to_str(epoch_seconds: i64) -> String {
+    let naive_datetime = chrono::DateTime::from_timestamp(epoch_seconds, 0);
+    naive_datetime
+        .unwrap()
+        .format("%Y-%m-%d %H:%M:%S")
+        .to_string()
 }

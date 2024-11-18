@@ -2,24 +2,27 @@
 use clap::Parser;
 
 use crate::{
-    cli::*, error::Error, globals::*, manager::Manager, package_pack::PackagePack, util::*,
+    cli::*, error::Error, gen::GenerationManager, globals::*, manager::Manager,
+    package_pack::PackagePack, util::*,
 };
 use std::{collections::HashMap, fs};
 
 pub struct App {
     managers: HashMap<String, Manager>,
     package_packs: HashMap<String, PackagePack>,
+    generation_manager: GenerationManager,
 }
 
 impl App {
     pub fn init() -> Self {
+        if !Self::is_already_setup() && yesnoprompt(ASK_FOR_SETUP_MSG) {
+            terminate_on_error(Self::setup());
+        }
         let mut app = Self {
             managers: HashMap::new(),
             package_packs: HashMap::new(),
+            generation_manager: GenerationManager::read(),
         };
-        if !app.is_already_setup() && yesnoprompt(ASK_FOR_SETUP_MSG) {
-            terminate_on_error(app.setup());
-        }
         app.read_data();
         app.setup_cli();
         app
@@ -27,7 +30,6 @@ impl App {
 
     fn read_data(&mut self) {
         for manager in files_in_dir(&managers_dir(), ".toml").unwrap() {
-            println!("Found manager: {}", manager);
             self.managers.insert(
                 get_filename(&manager).unwrap().replace(".toml", ""),
                 Manager::new(manager).unwrap(),
@@ -43,7 +45,7 @@ impl App {
         }
     }
 
-    fn setup_cli(&self) {
+    fn setup_cli(&mut self) {
         let cli = Cli::parse();
         if let Some(command) = cli.command {
             match command {
@@ -55,12 +57,34 @@ impl App {
         }
     }
 
-    fn handle_generation(&self, gen: GenerationCommand) {}
-    fn handle_install(&self, install: InstallPkg) {}
-    fn handle_sync(&self, sync: SyncPkg) {}
-    fn handle_remove(&self, remove: RemovePkg) {}
+    fn handle_generation(&mut self, gen: GenerationCommand) {
+        match gen {
+            GenerationCommand::Commit(messagedata) => {
+                terminate_on_error(self.generation_manager.commit(messagedata.genmsg));
+                self.generation_manager.save();
+            }
+            GenerationCommand::Rollback(geninfo) => {
+                terminate_on_error(self.generation_manager.rollback(geninfo.genid));
+                self.generation_manager.save();
+            }
+            GenerationCommand::Remove(geninfo) => {
+                terminate_on_error(self.generation_manager.remove(geninfo.genid));
+                self.generation_manager.save();
+            }
+            GenerationCommand::RemoveDuplicates => {
+                self.generation_manager.remove_duplicates();
+                self.generation_manager.save();
+            }
+            GenerationCommand::List => {
+                self.generation_manager.list_gens();
+            }
+        }
+    }
+    fn handle_install(&self, _install: PkgData) {}
+    fn handle_sync(&self, _sync: SyncPkg) {}
+    fn handle_remove(&self, _remove: PkgData) {}
 
-    fn is_already_setup(&self) -> bool {
+    fn is_already_setup() -> bool {
         if let Ok(res) = fs::exists(conf_file()) {
             return res;
         } else {
@@ -72,7 +96,7 @@ impl App {
         todo!();
     }
 
-    fn setup(&self) -> Result<(), Error> {
+    fn setup() -> Result<(), Error> {
         mkdir_if_not_exists(&conf_dir()).unwrap();
         mkdir_if_not_exists(&managers_dir()).unwrap();
         mkdir_if_not_exists(&package_dir()).unwrap();
