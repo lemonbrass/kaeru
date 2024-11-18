@@ -31,6 +31,7 @@ pub fn get_filename(path: &str) -> Option<&str> {
 }
 
 pub fn run_command(command_str: &str) -> io::Result<()> {
+    println!("Running: {}", command_str);
     let shell = env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
 
     if !Path::new(&shell).exists() {
@@ -44,7 +45,9 @@ pub fn run_command(command_str: &str) -> io::Result<()> {
 
     if !status.success() {
         eprintln!("Command failed with status: {}", status);
-        exit(1);
+        if yesnoprompt("Should I exit? [Y/n]: ") {
+            exit(1);
+        }
     }
 
     Ok(())
@@ -96,10 +99,6 @@ pub fn files_in_dirs(dirs: Vec<String>, extension: &str) -> io::Result<Vec<Strin
     Ok(files)
 }
 
-pub fn all_backup_files() -> Vec<String> {
-    vec![package_dir(), managers_dir()]
-}
-
 pub fn terminate_on_error<T>(value: Result<T, Error>) -> T {
     if let Err(err) = &value {
         eprintln!("ERROR: {}", err.msg);
@@ -123,12 +122,6 @@ pub fn conf_file() -> String {
 pub fn managers_dir() -> String {
     let mut path = conf_dir();
     path.push_str("/manager/");
-    path
-}
-
-pub fn package_dir() -> String {
-    let mut path = conf_dir();
-    path.push_str("/packages/");
     path
 }
 

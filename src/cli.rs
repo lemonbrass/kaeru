@@ -17,6 +17,8 @@ pub enum Commands {
     Remove(PkgData),
     /// Sync the database of a manager
     Sync(SyncPkg),
+    /// Upgrade manager
+    Upgrade(SyncPkg),
 }
 
 #[derive(Subcommand)]
@@ -31,6 +33,8 @@ pub enum GenerationCommand {
     List,
     /// Make the changes take effect, this starts a new generation
     Commit(GenerationMessage),
+    /// Apply any leftover changes
+    Apply,
 }
 
 #[derive(Args)]
@@ -47,8 +51,8 @@ pub struct GenerationMessage {
 
 #[derive(Args)]
 pub struct PkgData {
-    /// In which package pack to install
-    pub package_pack: String,
+    /// With which manager to install
+    pub manager: String,
     /// Name of package to install
     pub pkg_names: Vec<String>,
 }

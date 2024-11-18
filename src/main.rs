@@ -7,7 +7,6 @@ pub mod error;
 pub mod gen;
 pub mod globals;
 pub mod manager;
-pub mod package_pack;
 pub mod util;
 
 fn main() {

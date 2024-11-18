@@ -1,15 +1,11 @@
 #![allow(dead_code)]
+use crate::util::*;
+use crate::{cli::*, error::Error, gen::GenerationManager, globals::*, manager::Manager};
 use clap::Parser;
-
-use crate::{
-    cli::*, error::Error, gen::GenerationManager, globals::*, manager::Manager,
-    package_pack::PackagePack, util::*,
-};
 use std::{collections::HashMap, fs};
 
 pub struct App {
     managers: HashMap<String, Manager>,
-    package_packs: HashMap<String, PackagePack>,
     generation_manager: GenerationManager,
 }
 
@@ -20,11 +16,14 @@ impl App {
         }
         let mut app = Self {
             managers: HashMap::new(),
-            package_packs: HashMap::new(),
             generation_manager: GenerationManager::read(),
         };
         app.read_data();
         app.setup_cli();
+        app.generation_manager.save();
+        for (_, manager) in app.managers.iter() {
+            manager.save();
+        }
         app
     }
 
@@ -32,15 +31,7 @@ impl App {
         for manager in files_in_dir(&managers_dir(), ".toml").unwrap() {
             self.managers.insert(
                 get_filename(&manager).unwrap().replace(".toml", ""),
-                Manager::new(manager).unwrap(),
-            );
-        }
-
-        for package_pack in files_in_dir(&&package_dir(), ".toml").unwrap() {
-            println!("Found package pack: {}", package_pack);
-            self.package_packs.insert(
-                get_filename(&package_pack).unwrap().replace(".toml", ""),
-                PackagePack::new(package_pack).unwrap(),
+                Manager::new(manager),
             );
         }
     }
@@ -53,6 +44,7 @@ impl App {
                 Commands::Install(install) => self.handle_install(install),
                 Commands::Remove(remove) => self.handle_remove(remove),
                 Commands::Sync(sync) => self.handle_sync(sync),
+                Commands::Upgrade(upgrade) => self.handle_upgrade(upgrade),
             }
         }
     }
@@ -78,11 +70,35 @@ impl App {
             GenerationCommand::List => {
                 self.generation_manager.list_gens();
             }
+            GenerationCommand::Apply => {
+                self.generation_manager.apply_changes();
+            }
         }
     }
-    fn handle_install(&self, _install: PkgData) {}
-    fn handle_sync(&self, _sync: SyncPkg) {}
-    fn handle_remove(&self, _remove: PkgData) {}
+    fn handle_install(&mut self, install: PkgData) {
+        self.managers
+            .get_mut(&install.manager)
+            .unwrap()
+            .install(install.pkg_names)
+            .unwrap();
+    }
+    fn handle_sync(&self, sync: SyncPkg) {
+        self.managers.get(&sync.manager).unwrap().sync().unwrap();
+    }
+    fn handle_upgrade(&self, upgrade: SyncPkg) {
+        self.managers
+            .get(&upgrade.manager)
+            .unwrap()
+            .upgrade()
+            .unwrap();
+    }
+    fn handle_remove(&mut self, remove: PkgData) {
+        self.managers
+            .get_mut(&remove.manager)
+            .unwrap()
+            .install(remove.pkg_names)
+            .unwrap();
+    }
 
     fn is_already_setup() -> bool {
         if let Ok(res) = fs::exists(conf_file()) {
@@ -99,7 +115,6 @@ impl App {
     fn setup() -> Result<(), Error> {
         mkdir_if_not_exists(&conf_dir()).unwrap();
         mkdir_if_not_exists(&managers_dir()).unwrap();
-        mkdir_if_not_exists(&package_dir()).unwrap();
         mkdir_if_not_exists(&gen_dir()).unwrap();
         create_file_with_contents(&conf_file(), DEFAULT_CONFIG);
         println!("{}", SETUP_COMPLETE);
