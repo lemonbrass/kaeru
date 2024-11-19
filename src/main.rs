@@ -5,6 +5,7 @@ pub mod cli;
 pub mod config;
 pub mod error;
 pub mod gen;
+pub mod genman;
 pub mod globals;
 pub mod manager;
 pub mod util;

@@ -35,6 +35,15 @@ pub enum GenerationCommand {
     Commit(GenerationMessage),
     /// Apply any leftover changes
     Apply,
+    /// Get difference between 2 generations
+    Diff(DiffData),
+}
+
+#[derive(Args)]
+pub struct DiffData {
+    /// Generation ID of gens you wanna compare, find it using kaeru gen list
+    pub genid1: usize,
+    pub genid2: usize,
 }
 
 #[derive(Args)]

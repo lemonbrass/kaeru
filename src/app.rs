@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 use crate::util::*;
-use crate::{cli::*, error::Error, gen::GenerationManager, globals::*, manager::Manager};
+use crate::{cli::*, error::Error, genman::GenerationManager, globals::*, manager::Manager};
 use clap::Parser;
 use std::{collections::HashMap, fs};
 
@@ -73,12 +73,18 @@ impl App {
             GenerationCommand::Apply => {
                 self.generation_manager.apply_changes();
             }
+            GenerationCommand::Diff(diffdata) => {
+                println!(
+                    "Diff between Gen {} and Gen {}",
+                    diffdata.genid1, diffdata.genid2
+                );
+            }
         }
     }
     fn handle_install(&mut self, install: PkgData) {
         self.managers
             .get_mut(&install.manager)
-            .unwrap()
+            .expect("The specified manager not found.")
             .install(install.pkg_names)
             .unwrap();
     }
