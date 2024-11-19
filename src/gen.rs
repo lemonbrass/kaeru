@@ -5,16 +5,16 @@ use crate::util::*;
 use crate::{error::Error, globals::ERR_NO_CHANGES_TO_COMMIT};
 use serde::{Deserialize, Serialize};
 use serde_json;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashSet};
 
 pub struct GenerationManager {
-    gens: HashMap<usize, Generation>,
+    gens: BTreeMap<usize, Generation>,
     latest_gen: usize,
 }
 
 #[derive(Serialize, Deserialize)]
 struct Generation {
-    snapshot: HashMap<String, ConfFile>,
+    snapshot: BTreeMap<String, ConfFile>,
     epoch: i64,
     message: String,
 }
@@ -38,7 +38,7 @@ impl Generation {
 
     fn default(message: Option<String>) -> Self {
         Self {
-            snapshot: HashMap::new(),
+            snapshot: BTreeMap::new(),
             epoch: epoch_time_secs(),
             message: if message.is_none() {
                 "".into()
@@ -77,7 +77,7 @@ impl GenerationManager {
     pub fn read() -> Self {
         let genfiles = files_in_dir(&gen_dir(), ".json").unwrap();
         let mut manager = Self {
-            gens: HashMap::new(),
+            gens: BTreeMap::new(),
             latest_gen: 0,
         };
         for gen in genfiles {
@@ -158,15 +158,29 @@ impl GenerationManager {
     }
 
     pub fn list_gens(&self) {
+        let max_msg_len = self
+            .gens
+            .values()
+            .map(|gen| gen.message.len())
+            .max()
+            .unwrap_or(0);
+
         for (id, gen) in self.gens.iter() {
-            println!("{}: {} @ {}", id, gen.message, epoch_to_str(gen.epoch));
+            println!(
+                "{:2}: {:<width$} @ {}",
+                id,
+                gen.message,
+                epoch_to_str(gen.epoch),
+                width = max_msg_len + 5
+            );
         }
     }
 
     pub fn renumber_gens(&mut self) {
-        let mut sorted_gens: Vec<(usize, Generation)> = self.gens.drain().collect();
+        let mut sorted_gens: Vec<(usize, Generation)> =
+            std::mem::take(&mut self.gens).into_iter().collect();
         sorted_gens.sort_by_key(|(_, gen)| gen.epoch);
-        let mut new_gens = HashMap::new();
+        let mut new_gens = BTreeMap::new();
         for (new_id, (_, gen)) in sorted_gens.into_iter().enumerate() {
             new_gens.insert(new_id + 1, gen);
         }
