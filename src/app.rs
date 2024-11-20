@@ -103,7 +103,7 @@ impl App {
         self.managers
             .get_mut(&remove.manager)
             .unwrap()
-            .install(remove.pkg_names)
+            .remove(remove.pkg_names)
             .unwrap();
     }
 
