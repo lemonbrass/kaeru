@@ -1,8 +1,10 @@
+use crate::diff::GenDiff;
+use crate::error::Error;
 use crate::error::GEN_ERROR;
 use crate::gen::*;
-use crate::globals::ERR_INVALID_GENID;
+use crate::globals::{ERR_INVALID_GENID, GENERATION_FILE_EXT};
+use crate::manager::Manager;
 use crate::util::*;
-use crate::{error::Error, globals::ERR_NO_CHANGES_TO_COMMIT};
 use std::collections::{BTreeMap, HashSet};
 
 pub struct GenerationManager {
@@ -12,7 +14,7 @@ pub struct GenerationManager {
 
 impl GenerationManager {
     pub fn read() -> Self {
-        let genfiles = files_in_dir(&gen_dir(), ".json").unwrap();
+        let genfiles = files_in_dir(&gen_dir(), GENERATION_FILE_EXT).unwrap();
         let mut manager = Self {
             gens: BTreeMap::new(),
             latest_gen: 0,
@@ -20,7 +22,7 @@ impl GenerationManager {
         for gen in genfiles {
             let genname = get_filename(&gen).unwrap();
             let genid: usize = genname
-                .strip_suffix(".json")
+                .strip_suffix(GENERATION_FILE_EXT)
                 .unwrap()
                 .parse::<usize>()
                 .unwrap();
@@ -32,11 +34,11 @@ impl GenerationManager {
     }
 
     pub fn commit(&mut self, message: String) -> Result<(), Error> {
-        let next_gen = Generation::create(message);
+        let next_gen: Generation;
         if let Some(curr_gen) = self.gens.get(&self.latest_gen) {
-            if next_gen.snapshot == curr_gen.snapshot {
-                return Err(Error::new(ERR_NO_CHANGES_TO_COMMIT, GEN_ERROR));
-            }
+            next_gen = Generation::create(message, &curr_gen)?;
+        } else {
+            next_gen = Generation::genesis(message);
         }
         self.latest_gen += 1;
         self.gens.insert(self.latest_gen, next_gen);
@@ -44,18 +46,31 @@ impl GenerationManager {
         Ok(())
     }
 
-    pub fn apply_changes(&mut self) {
-        let next_gen = self.gens.get(&self.latest_gen).unwrap();
-        if let Some(prev_gen) = self.gens.get(&(self.latest_gen - 1)) {
-            let diffs = Diff::compare_gens(&prev_gen, &next_gen);
-            for mut diff in diffs {
-                if !diff.install.is_empty() {
-                    diff.manager.install(diff.install).unwrap();
-                }
-                if !diff.remove.is_empty() {
-                    diff.manager.remove(diff.remove).unwrap();
-                }
-                diff.manager.save();
+    pub fn apply_changes(&mut self, genid: Option<usize>) {
+        let curr_gen = self.gens.get(&self.latest_gen).unwrap();
+        if curr_gen.applied {
+            return ();
+        }
+        let prev_gen: Generation = self
+            .gens
+            .get(
+                &(if genid.is_none() {
+                    self.latest_gen - 1
+                } else {
+                    genid.unwrap()
+                }),
+            )
+            .cloned()
+            .unwrap_or_else(|| Generation::default(None));
+        let diffs = GenDiff::from_gens(&curr_gen, &prev_gen);
+        for diff in diffs {
+            println!("{}", diff.manager);
+            let mut manager = Manager::new(diff.manager);
+            if !diff.newly_installed.is_empty() {
+                manager.install(diff.newly_installed).unwrap();
+            }
+            if !diff.removed.is_empty() {
+                manager.remove(diff.removed).unwrap();
             }
         }
     }

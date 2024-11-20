@@ -34,7 +34,7 @@ pub enum GenerationCommand {
     /// Make the changes take effect, this starts a new generation
     Commit(GenerationMessage),
     /// Apply any leftover changes
-    Apply,
+    Apply(ApplyArg),
     /// Get difference between 2 generations
     Diff(DiffData),
 }
@@ -44,6 +44,11 @@ pub struct DiffData {
     /// Generation ID of gens you wanna compare, find it using kaeru gen list
     pub genid1: usize,
     pub genid2: usize,
+}
+
+#[derive(Args)]
+pub struct ApplyArg {
+    pub genid: Option<usize>,
 }
 
 #[derive(Args)]

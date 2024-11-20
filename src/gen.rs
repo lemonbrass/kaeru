@@ -1,26 +1,24 @@
-use crate::manager::Manager;
+use crate::error::GEN_ERROR;
+use crate::globals::ERR_NO_CHANGES_TO_COMMIT;
 use crate::util::*;
+use crate::{error::Error, globals::MANAGER_FILE_EXT};
 use serde::{Deserialize, Serialize};
 use serde_json;
-use std::collections::{BTreeMap, HashSet};
+use std::collections::HashMap;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Generation {
-    pub snapshot: BTreeMap<String, ConfFile>,
+    pub snapshot: HashMap<String, ConfFile>,
     pub epoch: i64,
     pub message: String,
+    pub applied: bool,
 }
 
-#[derive(Serialize, Deserialize, Clone, Hash, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq)]
 pub struct ConfFile {
-    content: String,
+    pub content: String,
     pub path: String,
-}
-
-pub struct Diff {
-    pub manager: Manager,
-    pub install: Vec<String>,
-    pub remove: Vec<String>,
+    pub epoch: i64, // time modified/commited
 }
 
 impl Generation {
@@ -28,29 +26,47 @@ impl Generation {
         serde_json::from_str(&get_contents_of(&file).unwrap())
     }
 
-    fn default(message: Option<String>) -> Self {
+    pub fn default(message: Option<String>) -> Self {
         Self {
-            snapshot: BTreeMap::new(),
+            snapshot: HashMap::new(),
             epoch: epoch_time_secs(),
             message: if message.is_none() {
                 "".into()
             } else {
                 message.unwrap()
             },
+            applied: false,
         }
     }
 
-    pub fn create(message: String) -> Self {
+    pub fn create(message: String, prev_gen: &Generation) -> Result<Self, Error> {
         let mut gen = Self::default(Some(message));
-        for file in files_in_dir(&managers_dir(), ".toml").unwrap() {
-            let file_name = get_filename(&file)
-                .unwrap()
-                .strip_suffix(".toml")
-                .unwrap()
-                .to_string();
-            let conf_file = ConfFile::new(&file);
-            gen.snapshot.insert(file_name, conf_file);
+        for file in files_in_dir(&managers_dir(), MANAGER_FILE_EXT).unwrap() {
+            let contents = get_contents_of(&file).unwrap();
+            if let Some(prev_content) = prev_gen.snapshot.get(&file) {
+                if contents == prev_content.content {
+                    gen.snapshot.insert(file, prev_content.clone());
+                }
+            } else {
+                let conffile = ConfFile::from_contents(&file, contents);
+                gen.snapshot.insert(file, conffile);
+            }
         }
+
+        if gen.snapshot == prev_gen.snapshot {
+            return Err(Error::new(ERR_NO_CHANGES_TO_COMMIT, GEN_ERROR));
+        }
+        Ok(gen)
+    }
+
+    pub fn genesis(message: String) -> Self {
+        let mut gen = Self::default(Some(message));
+
+        for file in files_in_dir(&managers_dir(), MANAGER_FILE_EXT).unwrap() {
+            let conffile = ConfFile::new(&file, epoch_time_secs());
+            gen.snapshot.insert(file, conffile);
+        }
+
         gen
     }
 
@@ -66,49 +82,19 @@ impl Generation {
     }
 }
 
-impl Diff {
-    pub fn compare_gens(gen1: &Generation, gen2: &Generation) -> Vec<Self> {
-        let mut diffs = Vec::new();
-        let mut managers = HashSet::new();
-        managers.extend(gen1.snapshot.keys());
-        managers.extend(gen2.snapshot.keys());
-
-        for manager in managers {
-            if let Some(gen1manager) = gen1.snapshot.get(&manager.to_string()) {
-                if let Some(gen2manager) = gen2.snapshot.get(&manager.to_string()) {
-                    let manager1: Manager = toml::from_str(&gen1manager.content).unwrap();
-                    let mut manager2: Manager = toml::from_str(&gen2manager.content).unwrap();
-                    manager2.file = gen1manager.path.clone();
-                    let install = manager2
-                        .items
-                        .difference(&manager1.items)
-                        .into_iter()
-                        .map(|ptr| ptr.clone())
-                        .collect();
-                    let remove = manager1
-                        .items
-                        .difference(&manager2.items)
-                        .into_iter()
-                        .map(|ptr| ptr.clone())
-                        .collect();
-                    diffs.push(Diff {
-                        install,
-                        manager: manager2,
-                        remove,
-                    });
-                }
-            }
-        }
-
-        diffs
-    }
-}
-
 impl ConfFile {
-    pub fn new(file: &str) -> Self {
+    pub fn new(file: &str, epoch: i64) -> Self {
         Self {
             content: get_contents_of(file).unwrap(),
             path: file.to_string(),
+            epoch,
+        }
+    }
+    pub fn from_contents(file: &str, content: String) -> Self {
+        Self {
+            content,
+            path: file.to_string(),
+            epoch: epoch_time_secs(),
         }
     }
 }

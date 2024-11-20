@@ -70,8 +70,9 @@ impl App {
             GenerationCommand::List => {
                 self.generation_manager.list_gens();
             }
-            GenerationCommand::Apply => {
-                self.generation_manager.apply_changes();
+            GenerationCommand::Apply(gendata) => {
+                self.generation_manager
+                    .apply_changes(gendata.genid.map(|gendata| gendata));
             }
             GenerationCommand::Diff(diffdata) => {
                 println!(
